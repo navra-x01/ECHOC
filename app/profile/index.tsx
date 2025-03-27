@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
@@ -8,12 +8,22 @@ import { db } from "../../lib/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import Header from "../components/Header";
 
+interface UserData {
+  name: string;
+  balance: number;
+  avatar?: string;
+}
+
 export default function ProfilePage() {
   const { colors, dark } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
-  const [userData, setUserData] = useState({ name: "", balance: 0 });
+  const [userData, setUserData] = useState<UserData>({
+    name: '',
+    balance: 0,
+    avatar: '',
+  });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -31,12 +41,57 @@ export default function ProfilePage() {
         setUserData({
           name: userDoc.data().name || "User",
           balance: userDoc.data().balance || 0,
+          avatar: userDoc.data().avatar,
         });
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
     }
   };
+
+  const styles = StyleSheet.create({
+    profileInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    avatarContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      borderWidth: 2,
+      borderColor: colors.border,
+      marginRight: 15,
+    },
+    avatar: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 40,
+    },
+    avatarPlaceholder: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 40,
+      backgroundColor: colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    userInfo: {
+      flexDirection: "column",
+    },
+    userName: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    userEmail: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    editButton: {
+      padding: 8,
+      marginLeft: 'auto',
+    },
+  });
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -63,15 +118,26 @@ export default function ProfilePage() {
           shadowOffset: { width: 0, height: 2 },
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Image
-            source={{ uri: "https://via.placeholder.com/80" }}
-            style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: colors.border }}
-          />
-          <View style={{ marginLeft: 15 }}>
-            <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.text }}>{userData.name}</Text>
-            <Text style={{ fontSize: 14, color: colors.text }}>Premium User Since 2021</Text>
+        <View style={styles.profileInfo}>
+          <View style={styles.avatarContainer}>
+            {userData?.avatar ? (
+              <Image source={{ uri: userData.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <MaterialIcons name="person" size={40} color={colors.text} />
+              </View>
+            )}
           </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{userData?.name || 'User'}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => router.push('/profile/edit')}
+          >
+            <MaterialIcons name="edit" size={24} color={colors.primary} />
+          </TouchableOpacity>
         </View>
 
         {/* Balance */}
