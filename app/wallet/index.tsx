@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Animated, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebaseConfig';
 import { useAuth } from '../../lib/AuthProvider';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
+import Header from '../components/Header';
 
 interface CoinGeckoData {
   id: string;
@@ -66,12 +67,14 @@ export default function WalletPage() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [scaleAnim] = useState(new Animated.Value(1));
 
-  useEffect(() => {
-    if (user) {
-      fetchCoinColors();
-      fetchUserCoins();
-    }
-  }, [user]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        fetchCoinColors();
+        fetchUserCoins();
+      }
+    }, [user])
+  );
 
   const fetchCoinColors = async () => {
     try {
@@ -310,15 +313,17 @@ export default function WalletPage() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Feather name="chevron-left" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>My Wallet</Text>
-        <TouchableOpacity onPress={() => fetchUserCoins()}>
-          <Feather name="refresh-ccw" size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
+      <Header 
+        title="My Wallet"
+        rightComponent={
+          <TouchableOpacity onPress={() => {
+            fetchCoinColors();
+            fetchUserCoins();
+          }}>
+            <Feather name="refresh-ccw" size={24} color={colors.text} />
+          </TouchableOpacity>
+        }
+      />
 
       <View style={styles.balanceContainer}>
         <Text style={styles.balanceLabel}>Total Balance</Text>

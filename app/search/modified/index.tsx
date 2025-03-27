@@ -6,6 +6,8 @@ import { Avatar } from "react-native-elements";
 import { db } from "../../../lib/firebaseConfig";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../../../lib/AuthProvider";
+import { useRouter, useFocusEffect } from "expo-router";
+import React from "react";
 
 interface SearchPageModifiedProps {
   initialQuery?: string;
@@ -27,17 +29,23 @@ const COINGECKO_API = `https://api.coingecko.com/api/v3/coins/markets?vs_currenc
 export default function SearchPageModified({ initialQuery = "", onClose }: SearchPageModifiedProps) {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [balance, setBalance] = useState("$0.00");
   const [coins, setCoins] = useState<Coin[]>([]);
   const [filteredCoins, setFilteredCoins] = useState<Coin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'recent' | 'favorite'>('recent');
 
-  useEffect(() => {
-    fetchBalance();
-    fetchCoins();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        fetchBalance();
+        fetchCoins();
+      }
+    }, [user])
+  );
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -102,11 +110,11 @@ export default function SearchPageModified({ initialQuery = "", onClose }: Searc
         // Remove the coin if it already exists (to avoid duplicates)
         const updatedVisited = currentVisited.filter((id: string) => id !== coin.id);
         
-        // Add the coin to the end of the array
-        updatedVisited.push(coin.id);
+        // Add the coin to the beginning of the array (most recent first)
+        updatedVisited.unshift(coin.id);
         
         // Keep only the last 20 visited coins
-        const limitedVisited = updatedVisited.slice(-20);
+        const limitedVisited = updatedVisited.slice(0, 20);
         
         await updateDoc(userRef, {
           recentlyVisited: limitedVisited
@@ -166,37 +174,60 @@ export default function SearchPageModified({ initialQuery = "", onClose }: Searc
       </View>
       
       {/* Coins List */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {filteredCoins.map((coin) => (
-          <TouchableOpacity
-            key={coin.id}
-            style={{ backgroundColor: colors.card, padding: 16, borderRadius: 10, marginBottom: 10 }}
-            onPress={() => handleCoinClick(coin)}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Avatar
-                rounded
-                source={{ uri: coin.image }}
-                size={40}
-                containerStyle={{ marginRight: 10 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold" }}>{coin.name}</Text>
-                <Text style={{ color: colors.text, fontSize: 12, opacity: 0.6 }}>({coin.symbol.toUpperCase()})</Text>
-              </View>
-              <Text style={{ 
-                color: coin.price_change_percentage_24h >= 0 ? '#16bc5a' : '#ef4444',
-                fontSize: 14 
-              }}>
-                {coin.price_change_percentage_24h >= 0 ? '+' : ''}
-                {coin.price_change_percentage_24h.toFixed(2)}%
-              </Text>
-            </View>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold", marginTop: 5 }}>
-              ${coin.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      <ScrollView style={{ flex: 1 }}>
+        {filteredCoins.length === 0 ? (
+          <View style={{ padding: 16, alignItems: "center" }}>
+            <Text style={{ color: colors.text, opacity: 0.7 }}>
+              {viewMode === 'recent' ? 'No recently viewed coins' : 'No favorite coins'}
             </Text>
-          </TouchableOpacity>
-        ))}
+          </View>
+        ) : (
+          <>
+            {filteredCoins.map((coin) => (
+              <TouchableOpacity
+                key={coin.id}
+                onPress={async () => {
+                  await handleCoinClick(coin);
+                  router.push(`/coin?id=${coin.id}`);
+                }}
+                style={{ 
+                  backgroundColor: colors.card, 
+                  padding: 16, 
+                  borderRadius: 10, 
+                  marginBottom: 10,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 2,
+                  elevation: 2
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Avatar
+                    rounded
+                    source={{ uri: coin.image }}
+                    size={40}
+                    containerStyle={{ marginRight: 10 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold" }}>{coin.name}</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, opacity: 0.6 }}>({coin.symbol.toUpperCase()})</Text>
+                  </View>
+                  <Text style={{ 
+                    color: coin.price_change_percentage_24h >= 0 ? '#16bc5a' : '#ef4444',
+                    fontSize: 14 
+                  }}>
+                    {coin.price_change_percentage_24h >= 0 ? '+' : ''}
+                    {coin.price_change_percentage_24h.toFixed(2)}%
+                  </Text>
+                </View>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold", marginTop: 5 }}>
+                  ${coin.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </ScrollView>
 
       {/* Footer Navigation */}

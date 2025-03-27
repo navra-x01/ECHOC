@@ -2,7 +2,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator } from "react-native";
 import { useTheme } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, Feather, AntDesign } from "@expo/vector-icons";
 import { collection, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../../lib/firebaseConfig";
@@ -37,9 +37,13 @@ export default function SearchPage() {
   const [showAllCoins, setShowAllCoins] = useState(false);
   const [viewMode, setViewMode] = useState<'recent' | 'favorites'>('recent');
 
-  useEffect(() => {
-    fetchUserData();
-  }, [user]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        fetchUserData();
+      }
+    }, [user])
+  );
 
   const fetchUserData = async () => {
     if (!user) return;
@@ -53,7 +57,11 @@ export default function SearchPage() {
         
         // Fetch recently visited coins from user data
         const recentCoinIds = data.recentlyVisited || [];
-        await fetchRecentCoins(recentCoinIds);
+        if (recentCoinIds.length > 0) {
+          await fetchRecentCoins(recentCoinIds);
+        } else {
+          setRecentCoins([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -64,12 +72,6 @@ export default function SearchPage() {
     try {
       setLoading(true);
       setError(null);
-
-      if (coinIds.length === 0) {
-        setRecentCoins([]);
-        setLoading(false);
-        return;
-      }
 
       // Create the CoinGecko API URL with all coin IDs
       const idsParam = coinIds.join(',');
@@ -84,7 +86,6 @@ export default function SearchPage() {
       const data = await response.json();
       // Sort the data to match the order of coinIds (most recent first)
       const sortedData = coinIds
-        .reverse()
         .map(id => data.find((coin: Coin) => coin.id === id))
         .filter((coin): coin is Coin => coin !== undefined);
       setRecentCoins(sortedData);
@@ -137,7 +138,7 @@ export default function SearchPage() {
         <TouchableOpacity onPress={() => router.push("../../app/assets")}> 
           <Ionicons name="chevron-back" size={24} color={colors.text} /> 
         </TouchableOpacity>
-        <Text style={{ fontSize: 20, fontWeight: "500", color: colors.text }}>Total Assets</Text>
+        <Text style={{ fontSize: 20, fontWeight: "500", color: colors.text }}>Discover</Text>
         <TouchableOpacity>
           <Feather name="menu" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -212,66 +213,69 @@ export default function SearchPage() {
           </TouchableOpacity>
         </View>
         
-        {displayedCoins.length === 0 ? (
-          <View style={{ padding: 16, alignItems: "center" }}>
-            <Text style={{ color: colors.text, opacity: 0.7 }}>
-              {viewMode === 'recent' ? 'No recently viewed coins' : 'No favorite coins'}
-            </Text>
-          </View>
-        ) : (
-          <>
-            {displayedCoins.map((coin) => (
-              <View 
-                key={coin.id} 
-                style={{ 
-                  backgroundColor: colors.card, 
-                  padding: 16, 
-                  borderRadius: 10, 
-                  marginBottom: 10,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Avatar
-                    rounded
-                    source={{ uri: coin.image }}
-                    size={40}
-                    containerStyle={{ marginRight: 10 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold" }}>{coin.name}</Text>
-                    <Text style={{ color: colors.text, fontSize: 12, opacity: 0.6 }}>({coin.symbol.toUpperCase()})</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold", marginRight: 10 }}>
-                        ${coin.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </Text>
-                      <TouchableOpacity onPress={() => toggleFavorite(coin.id)}>
-                        <AntDesign 
-                          name={favorites.includes(coin.id) ? "heart" : "hearto"} 
-                          size={20} 
-                          color={favorites.includes(coin.id) ? "#ef4444" : colors.text} 
-                        />
-                      </TouchableOpacity>
+        <ScrollView style={{ flex: 1 }}>
+          {displayedCoins.length === 0 ? (
+            <View style={{ padding: 16, alignItems: "center" }}>
+              <Text style={{ color: colors.text, opacity: 0.7 }}>
+                {viewMode === 'recent' ? 'No recently viewed coins' : 'No favorite coins'}
+              </Text>
+            </View>
+          ) : (
+            <>
+              {displayedCoins.map((coin) => (
+                <TouchableOpacity
+                  key={coin.id}
+                  onPress={() => router.push(`/coin?id=${coin.id}`)}
+                  style={{ 
+                    backgroundColor: colors.card, 
+                    padding: 16, 
+                    borderRadius: 10, 
+                    marginBottom: 10,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
+                    elevation: 2
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Avatar
+                      rounded
+                      source={{ uri: coin.image }}
+                      size={40}
+                      containerStyle={{ marginRight: 10 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold" }}>{coin.name}</Text>
+                      <Text style={{ color: colors.text, fontSize: 12, opacity: 0.6 }}>({coin.symbol.toUpperCase()})</Text>
                     </View>
-                    <Text style={{ 
-                      color: coin.price_change_percentage_24h >= 0 ? '#16bc5a' : '#ef4444',
-                      fontSize: 14 
-                    }}>
-                      {coin.price_change_percentage_24h >= 0 ? '+' : ''}
-                      {coin.price_change_percentage_24h.toFixed(2)}%
-                    </Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "bold", marginRight: 10 }}>
+                          ${coin.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
+                        <TouchableOpacity onPress={() => toggleFavorite(coin.id)}>
+                          <AntDesign 
+                            name={favorites.includes(coin.id) ? "heart" : "hearto"} 
+                            size={20} 
+                            color={favorites.includes(coin.id) ? "#ef4444" : colors.text} 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={{ 
+                        color: coin.price_change_percentage_24h >= 0 ? '#16bc5a' : '#ef4444',
+                        fontSize: 14 
+                      }}>
+                        {coin.price_change_percentage_24h >= 0 ? '+' : ''}
+                        {coin.price_change_percentage_24h.toFixed(2)}%
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </View>
-            ))}
-          </>
-        )}
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+        </ScrollView>
       </ScrollView>
     </View>
   );

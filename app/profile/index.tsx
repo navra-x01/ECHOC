@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
 import { useTheme } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 import { useAuth } from "../../lib/AuthProvider";
 import { db } from "../../lib/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import Header from "../components/Header";
 
 export default function ProfilePage() {
   const { colors, dark } = useTheme();
@@ -14,9 +15,13 @@ export default function ProfilePage() {
   const [showBalance, setShowBalance] = useState(true);
   const [userData, setUserData] = useState({ name: "", balance: 0 });
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        fetchUserData();
+      }
+    }, [user])
+  );
 
   const fetchUserData = async () => {
     if (!user) return;
@@ -35,12 +40,14 @@ export default function ProfilePage() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View style={{ height: 160, backgroundColor: dark ? "#1E1E1E" : "#4C8BF5", padding: 20 }}>
-        <TouchableOpacity style={{ alignSelf: "flex-end" }} onPress={() => {}}>
-          <Ionicons name={dark ? "sunny" : "moon"} size={24} color="white" />
-        </TouchableOpacity>
-      </View>
+      <Header 
+        title="Profile"
+        rightComponent={
+          <TouchableOpacity onPress={() => {}}>
+            <Ionicons name={dark ? "sunny" : "moon"} size={24} color={colors.text} />
+          </TouchableOpacity>
+        }
+      />
 
       {/* Profile Card */}
       <View
@@ -49,7 +56,7 @@ export default function ProfilePage() {
           marginHorizontal: 20,
           padding: 20,
           borderRadius: 10,
-          marginTop: -50,
+          marginTop: 20,
           shadowColor: "#000",
           shadowOpacity: 0.2,
           shadowRadius: 4,
@@ -126,7 +133,7 @@ export default function ProfilePage() {
           <Ionicons name="notifications-outline" size={24} color={colors.text} />
           <Text style={{ marginLeft: 10, color: colors.text }}>Notifications</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("./logout")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
+        <TouchableOpacity onPress={() => router.push("/auth/logout")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
           <Feather name="log-out" size={24} color={colors.text} />
           <Text style={{ marginLeft: 10, color: colors.text }}>Log Out</Text>
         </TouchableOpacity>

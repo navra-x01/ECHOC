@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Image, ScrollView, Switch } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Image, ScrollView, Switch, Modal, TextInput, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Legend, ReferenceLine
 } from "recharts";
+import { doc, updateDoc, getDoc, arrayUnion, arrayRemove, collection, setDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { db } from "../../lib/firebaseConfig";
+import { useAuth } from "../../lib/AuthProvider";
 
 const API_KEY = "CG-RA1kcuTZoEQ3F5LeE6iMQTFB";
 
@@ -60,6 +63,7 @@ type TimePeriod = '1H' | '1D' | '7D' | '1M' | '1Y' | 'MAX';
 export default function CoinPage() {
   const router = useRouter();
   const { id: initialId } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [id, setId] = useState(initialId);
   const [coinData, setCoinData] = useState<CoinData | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -68,6 +72,11 @@ export default function CoinPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [showCoinSelector, setShowCoinSelector] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [transactionType, setTransactionType] = useState<'buy' | 'sell'>('buy');
+  const [amount, setAmount] = useState('');
+  const [userBalance, setUserBalance] = useState(0);
+  const [userCoins, setUserCoins] = useState<Record<string, number>>({});
 
   // Theme colors
   const theme = {
@@ -89,6 +98,12 @@ export default function CoinPage() {
       fetchChartData();
     }
   }, [timePeriod]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserData();
+    }
+  }, [user]);
 
   const fetchInitialData = async () => {
     try {
@@ -179,6 +194,129 @@ export default function CoinPage() {
     }
   };
 
+  const fetchUserData = async () => {
+    if (!user) return;
+    try {
+      // Fetch user balance
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        setUserBalance(userDoc.data().balance || 0);
+      }
+
+      // Fetch user coins from coins collection
+      const coinsRef = collection(db, "users", user.uid, "coins");
+      const coinsSnapshot = await getDocs(coinsRef);
+      
+      const coins: Record<string, number> = {};
+      coinsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        coins[data.symbol?.toUpperCase() || doc.id] = parseFloat(data.quantity) || 0;
+      });
+      
+      setUserCoins(coins);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  const handleTransaction = async () => {
+    if (!user || !coinData) return;
+
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      return;
+    }
+
+    const currentPrice = coinData.market_data.current_price.usd;
+    const totalValue = amountNum * currentPrice;
+
+    if (transactionType === 'buy') {
+      if (totalValue > userBalance) {
+        Alert.alert('Insufficient Balance', 'You do not have enough balance to make this purchase');
+        return;
+      }
+    } else {
+      const userCoinAmount = userCoins[coinData.symbol.toUpperCase()] || 0;
+      if (amountNum > userCoinAmount) {
+        Alert.alert('Insufficient Coins', 'You do not have enough coins to sell');
+        return;
+      }
+    }
+
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const coinsRef = collection(db, "users", user.uid, "coins");
+      const coinDoc = doc(coinsRef, coinData.symbol.toUpperCase());
+
+      if (transactionType === 'buy') {
+        // Update user balance
+        await updateDoc(userRef, {
+          balance: userBalance - totalValue
+        });
+
+        // Update or create coin document
+        const coinSnapshot = await getDoc(coinDoc);
+        if (coinSnapshot.exists()) {
+          await updateDoc(coinDoc, {
+            quantity: (coinSnapshot.data().quantity || 0) + amountNum
+          });
+        } else {
+          await setDoc(coinDoc, {
+            symbol: coinData.symbol.toUpperCase(),
+            quantity: amountNum
+          });
+        }
+
+        // Update local state
+        setUserBalance(prev => prev - totalValue);
+        setUserCoins(prev => ({
+          ...prev,
+          [coinData.symbol.toUpperCase()]: (prev[coinData.symbol.toUpperCase()] || 0) + amountNum
+        }));
+      } else {
+        // Update user balance
+        await updateDoc(userRef, {
+          balance: userBalance + totalValue
+        });
+
+        // Update coin document
+        const coinSnapshot = await getDoc(coinDoc);
+        if (coinSnapshot.exists()) {
+          const newQuantity = coinSnapshot.data().quantity - amountNum;
+          if (newQuantity <= 0) {
+            await deleteDoc(coinDoc);
+          } else {
+            await updateDoc(coinDoc, {
+              quantity: newQuantity
+            });
+          }
+        }
+
+        // Update local state
+        setUserBalance(prev => prev + totalValue);
+        setUserCoins(prev => ({
+          ...prev,
+          [coinData.symbol.toUpperCase()]: (prev[coinData.symbol.toUpperCase()] || 0) - amountNum
+        }));
+      }
+
+      Alert.alert(
+        'Success',
+        `${transactionType === 'buy' ? 'Bought' : 'Sold'} ${amountNum} ${coinData.symbol.toUpperCase()} for $${totalValue.toFixed(2)}`
+      );
+      
+      setShowTransactionModal(false);
+      setAmount('');
+      
+      // Refresh coin data to get latest price
+      fetchInitialData();
+    } catch (error) {
+      console.error("Error processing transaction:", error);
+      Alert.alert('Error', 'Failed to process transaction. Please try again.');
+    }
+  };
+
   const formatTooltipDate = (timestamp: number) => {
     if (timePeriod === '1H' || timePeriod === '1D') {
       return new Date(timestamp).toLocaleTimeString([], { 
@@ -252,13 +390,13 @@ export default function CoinPage() {
       }}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{
-        paddingBottom: 20
+        paddingBottom: 100
       }}
     >
       <View style={{ 
         padding: 16, 
         alignItems: "center",
-        paddingBottom: 40, // Add extra padding at the bottom
+        paddingBottom: 20,
       }}>
         {/* Header - Simplified */}
         <View style={{ 
@@ -269,7 +407,7 @@ export default function CoinPage() {
           marginBottom: 16,
           paddingTop: 8
         }}>
-          <TouchableOpacity onPress={() => router.push("/")}>
+          <TouchableOpacity onPress={() => router.back()}>
             <AntDesign name="left" size={24} color={theme.text} />
           </TouchableOpacity>
           
@@ -485,7 +623,7 @@ export default function CoinPage() {
         {/* Market Stats - Reorganized */}
         <View style={{ 
           width: '100%', 
-          marginBottom: 24,
+          marginBottom: 20,
           marginTop: 8
         }}>
           {/* All Time High */}
@@ -537,77 +675,155 @@ export default function CoinPage() {
         {/* Buy & Sell Buttons */}
         <View style={{ 
           flexDirection: "row", 
-          justifyContent: "space-between", 
+          justifyContent: "space-around",
           width: "100%",
-          marginBottom: 40,
-          paddingHorizontal: 4,
-          marginTop: 8
+          paddingHorizontal: 16,
+          position: 'relative',
+          zIndex: 1
         }}>
-          <TouchableOpacity 
-            style={{ 
-              flex: 1, 
-              backgroundColor: theme.negative + '20',
-              padding: 16,
-              alignItems: "center", 
-              borderRadius: 12,
+          <TouchableOpacity
+            onPress={() => {
+              setTransactionType('buy');
+              setShowTransactionModal(true);
+            }}
+            style={{
+              backgroundColor: theme.positive,
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: 8,
+              flex: 1,
               marginRight: 8,
-              borderWidth: 1.5,
-              borderColor: theme.negative,
-              shadowColor: theme.negative,
-              shadowOffset: {
-                width: 0,
-                height: 2,
-              },
-              shadowOpacity: 0.15,
+              elevation: 5,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
               shadowRadius: 3.84,
-              elevation: 3,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MaterialIcons name="trending-down" size={20} color={theme.negative} style={{ marginRight: 6 }} />
-              <Text style={{ 
-                color: theme.negative, 
-                fontWeight: "bold",
-                fontSize: 16,
-              }}>
-                Sell
-              </Text>
-            </View>
+            <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Buy</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={{ 
-              flex: 1, 
-              backgroundColor: theme.positive + '20',
-              padding: 16,
-              alignItems: "center", 
-              borderRadius: 12,
+          <TouchableOpacity
+            onPress={() => {
+              setTransactionType('sell');
+              setShowTransactionModal(true);
+            }}
+            style={{
+              backgroundColor: theme.negative,
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: 8,
+              flex: 1,
               marginLeft: 8,
-              borderWidth: 1.5,
-              borderColor: theme.positive,
-              shadowColor: theme.positive,
-              shadowOffset: {
-                width: 0,
-                height: 2,
-              },
-              shadowOpacity: 0.15,
+              elevation: 5,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
               shadowRadius: 3.84,
-              elevation: 3,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MaterialIcons name="trending-up" size={20} color={theme.positive} style={{ marginRight: 6 }} />
-              <Text style={{ 
-                color: theme.positive, 
-                fontWeight: "bold",
-                fontSize: 16,
-              }}>
-                Buy
-              </Text>
-            </View>
+            <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Sell</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Transaction Modal */}
+      <Modal
+        visible={showTransactionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTransactionModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}>
+          <View style={{
+            backgroundColor: theme.background,
+            borderRadius: 12,
+            padding: 20,
+            width: '90%',
+            maxWidth: 400,
+            shadowColor: "#000",
+            shadowOffset: {
+              width: 0,
+              height: 2
+            },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5
+          }}>
+            <Text style={{
+              fontSize: 24,
+              fontWeight: 'bold',
+              color: theme.text,
+              marginBottom: 20,
+              textAlign: 'center'
+            }}>
+              {transactionType === 'buy' ? 'Buy' : 'Sell'} {coinData?.symbol.toUpperCase()}
+            </Text>
+
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: theme.card,
+                borderRadius: 8,
+                padding: 12,
+                color: theme.text,
+                marginBottom: 16
+              }}
+              placeholder="Enter amount"
+              placeholderTextColor={theme.subtext}
+              keyboardType="decimal-pad"
+              value={amount}
+              onChangeText={setAmount}
+            />
+
+            {coinData && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: theme.subtext, marginBottom: 8 }}>
+                  Current Price: ${coinData.market_data.current_price.usd.toLocaleString()}
+                </Text>
+                <Text style={{ color: theme.subtext }}>
+                  Total Value: ${(parseFloat(amount || '0') * coinData.market_data.current_price.usd).toLocaleString()}
+                </Text>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <TouchableOpacity
+                onPress={() => setShowTransactionModal(false)}
+                style={{
+                  backgroundColor: theme.card,
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 8,
+                  flex: 1,
+                  marginRight: 8
+                }}
+              >
+                <Text style={{ color: theme.text, textAlign: 'center', fontWeight: 'bold' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleTransaction}
+                style={{
+                  backgroundColor: transactionType === 'buy' ? theme.positive : theme.negative,
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 8,
+                  flex: 1,
+                  marginLeft: 8
+                }}
+              >
+                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
+                  {transactionType === 'buy' ? 'Buy' : 'Sell'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

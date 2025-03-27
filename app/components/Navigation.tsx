@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native"
 import { Link, usePathname } from "expo-router"
-import { Home, PieChart, Search, CreditCard, User } from "lucide-react-native"
+import { Home, Trophy, Search, CreditCard, User } from "lucide-react-native"
 import { GlobalStyles } from "../../styles"
 
 export default function Navigation() {
@@ -17,10 +17,10 @@ export default function Navigation() {
         </TouchableOpacity>
       </Link>
 
-      <Link href="/chart" asChild>
+      <Link href="/leaderboard" asChild>
         <TouchableOpacity style={GlobalStyles.navItem}>
-          <PieChart color={getColor("/chart")} size={24} />
-          <Text style={[GlobalStyles.navText, { color: getColor("/chart") }]}>Chart</Text>
+          <Trophy color={getColor("/leaderboard")} size={24} />
+          <Text style={[GlobalStyles.navText, { color: getColor("/leaderboard") }]}>Leaderboard</Text>
         </TouchableOpacity>
       </Link>
 
