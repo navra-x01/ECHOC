@@ -1,21 +1,12 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Animated, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebaseConfig';
 import { useAuth } from '../../lib/AuthProvider';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
-
-interface CoinGeckoData {
-  id: string;
-  symbol: string;
-  name: string;
-  image: string;
-  current_price: number;
-  price_change_percentage_24h: number;
-}
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 interface Coin {
   name: string;
@@ -25,11 +16,12 @@ interface Coin {
   symbol: string;
   color: string;
   change: number;
-  image?: string;
 }
 
 const { width } = Dimensions.get("window");
 const CHART_SIZE = Math.min(width * 0.8, 300);
+const RADIUS = CHART_SIZE / 3;
+const CENTER = CHART_SIZE / 2;
 
 // Mapping of coin symbols to their full names
 const COIN_NAMES = {
@@ -43,8 +35,7 @@ const COIN_NAMES = {
   DOGE: "Dogecoin",
 };
 
-// Default colors in case API fails
-const defaultColors = {
+const coinColors = {
   BTC: "#F7931A",
   ETH: "#627EEA",
   USDT: "#26A17B",
@@ -55,65 +46,47 @@ const defaultColors = {
   DOGE: "#C2A633",
 };
 
+function polarToCartesian(centerX: number, centerY: number, radius: number, angleInRadians: number) {
+  return {
+    x: centerX + radius * Math.cos(angleInRadians),
+    y: centerY + radius * Math.sin(angleInRadians)
+  };
+}
+
+function createArc(startAngle: number, endAngle: number): string {
+  // Ensure angles are between 0 and 2π
+  startAngle = startAngle % (2 * Math.PI);
+  endAngle = endAngle % (2 * Math.PI);
+  
+  const start = polarToCartesian(CENTER, CENTER, RADIUS, startAngle);
+  const end = polarToCartesian(CENTER, CENTER, RADIUS, endAngle);
+  
+  // Determine if the arc should be drawn the long way around
+  const largeArcFlag = endAngle - startAngle <= Math.PI ? "0" : "1";
+  
+  // Create the SVG arc path
+  return `
+    M ${CENTER} ${CENTER}
+    L ${start.x} ${start.y}
+    A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 1 ${end.x} ${end.y}
+    Z
+  `.trim();
+}
+
 export default function WalletPage() {
+  const router = useRouter();
   const router = useRouter();
   const { colors } = useTheme();
   const { user } = useAuth();
   const [userCoins, setUserCoins] = useState<Coin[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [coinColors, setCoinColors] = useState<Record<string, string>>(defaultColors);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [scaleAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
     if (user) {
-      fetchCoinColors();
       fetchUserCoins();
     }
   }, [user]);
-
-  const fetchCoinColors = async () => {
-    try {
-      const response = await fetch('https://api.coingecko.com/api/v3/coins/list?include_platform=false');
-      const data = await response.json();
-      
-      const colors: Record<string, string> = {};
-      data.forEach((coin: any) => {
-        if (coin.symbol && coin.id) {
-          colors[coin.symbol.toUpperCase()] = `#${Math.floor(Math.random()*16777215).toString(16)}`;
-        }
-      });
-      
-      setCoinColors(colors);
-    } catch (error) {
-      console.error("Error fetching coin colors:", error);
-      setCoinColors(defaultColors);
-    }
-  };
-
-  const fetchCoinData = async (symbols: string[]) => {
-    try {
-      const vs_currency = 'usd';
-      const symbolString = symbols.join(',');
-      const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=${vs_currency}&symbols=${symbolString}&order=market_cap_desc&per_page=100&page=1&sparkline=false`
-      );
-      const data: CoinGeckoData[] = await response.json();
-      return data.reduce((acc, coin) => {
-        acc[coin.symbol.toUpperCase()] = {
-          name: coin.name,
-          price: coin.current_price,
-          change: coin.price_change_percentage_24h,
-          image: coin.image
-        };
-        return acc;
-      }, {} as Record<string, { name: string; price: number; change: number; image: string; }>);
-    } catch (error) {
-      console.error("Error fetching coin data:", error);
-      return {};
-    }
-  };
 
   const fetchUserCoins = async () => {
     try {
@@ -123,40 +96,34 @@ export default function WalletPage() {
       const coinsRef = collection(db, "users", user.uid, "coins");
       const coinsSnapshot = await getDocs(coinsRef);
       
-      const userCoinData = coinsSnapshot.docs.map(doc => ({
-        symbol: doc.data().symbol?.toUpperCase() || "UNKNOWN",
-        quantity: parseFloat(doc.data().quantity) || 0
-      }));
-
-      // Fetch updated coin data from CoinGecko
-      const coinData = await fetchCoinData(userCoinData.map(coin => coin.symbol));
-      
       let total = 0;
       const coins: Coin[] = [];
 
-      for (const userCoin of userCoinData) {
-        const { symbol, quantity } = userCoin;
-        const geckoData = coinData[symbol];
+      for (const doc of coinsSnapshot.docs) {
+        const data = doc.data();
+        // Get the proper coin symbol from the data
+        const symbol = data.symbol?.toUpperCase() || "UNKNOWN";
+        const quantity = parseFloat(data.quantity) || 0;
+        const currentPrice = parseFloat(data.currentPrice) || 0;
+        const balance = quantity * currentPrice;
         
-        if (geckoData) {
-          const currentPrice = geckoData.price;
-          const balance = quantity * currentPrice;
-          
+        // Only add coins with non-zero quantity
+        if (quantity > 0) {
           total += balance;
           
           coins.push({
-            name: geckoData.name,
+            name: COIN_NAMES[symbol as keyof typeof COIN_NAMES] || data.name || symbol,
             symbol: symbol,
             quantity: quantity,
             currentPrice: currentPrice,
             balance: balance,
-            color: defaultColors[symbol as keyof typeof defaultColors] || `#${Math.floor(Math.random()*16777215).toString(16)}`,
-            change: geckoData.change,
-            image: geckoData.image
+            color: coinColors[symbol as keyof typeof coinColors] || "#808080",
+            change: parseFloat(data.change) || 0
           });
         }
       }
 
+      // Sort coins by balance in descending order
       const sortedCoins = coins.sort((a, b) => b.balance - a.balance);
       
       setTotalBalance(total);
@@ -168,135 +135,55 @@ export default function WalletPage() {
     }
   };
 
-  const onPieEnter = (_: any, index: number) => {
-    setActiveIndex(index);
-    Animated.spring(scaleAnim, {
-      toValue: 1.05,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onPieLeave = () => {
-    setActiveIndex(-1);
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const renderActiveShape = (props: any) => {
-    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-    
-    return (
-      <g>
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius + 8}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-        />
-        <Sector
-          cx={cx}
-          cy={cy}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          innerRadius={innerRadius - 4}
-          outerRadius={innerRadius - 2}
-          fill={fill}
-        />
-      </g>
-    );
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <View style={styles.tooltipContainer}>
-          <Text style={styles.tooltipTitle}>{data.name}</Text>
-          <Text style={styles.tooltipValue}>${data.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</Text>
-        </View>
-      );
-    }
-    return null;
-  };
-
   const renderPieChart = () => {
     const validCoins = userCoins.filter(coin => coin.balance > 0);
     
     if (validCoins.length === 0) {
       return (
-        <View style={styles.emptyChartContainer}>
-          <Text style={styles.emptyChartText}>No coins to display</Text>
-        </View>
+        <Svg width={CHART_SIZE} height={CHART_SIZE} style={styles.chart}>
+          <Circle
+            cx={CENTER}
+            cy={CENTER}
+            r={RADIUS}
+            fill="#f0f0f0"
+          />
+        </Svg>
       );
     }
-
-    const chartData = validCoins.map(coin => ({
-      name: coin.name,
-      value: coin.balance,
-      symbol: coin.symbol,
-      color: coin.color,
-      percentage: ((coin.balance / totalBalance) * 100).toFixed(1),
-      quantity: coin.quantity,
-      price: coin.currentPrice
-    }));
-
+    
+    let startAngle = -Math.PI / 2; // Start from top
+    const total = validCoins.reduce((sum, coin) => sum + coin.balance, 0);
+    
     return (
-      <Animated.View style={[styles.chartWrapper, { transform: [{ scale: scaleAnim }] }]}>
-        <View style={styles.chartContainer}>
-          <ResponsiveContainer width={CHART_SIZE} height={CHART_SIZE}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-                activeIndex={activeIndex}
-                activeShape={renderActiveShape}
-                onMouseEnter={onPieEnter}
-                onMouseLeave={onPieLeave}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.color}
-                    strokeWidth={1}
-                    stroke="#fff"
-                  />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-        </View>
-        <View style={styles.chartLegend}>
-          {chartData.map((entry, index) => (
-            <TouchableOpacity
-              key={`${entry.symbol}-${index}`}
-              style={[
-                styles.legendItem,
-                activeIndex === index && styles.legendItemActive
-              ]}
-              onPress={() => setActiveIndex(index === activeIndex ? -1 : index)}
-            >
-              <View style={[styles.legendColor, { backgroundColor: entry.color }]} />
-              <Text style={[
-                styles.legendText,
-                activeIndex === index && styles.legendTextActive
-              ]}>
-                {entry.name} ({entry.symbol}): {entry.percentage}%
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </Animated.View>
+      <Svg width={CHART_SIZE} height={CHART_SIZE} style={styles.chart}>
+        <Circle
+          cx={CENTER}
+          cy={CENTER}
+          r={RADIUS}
+          fill="#f0f0f0"
+        />
+        <G>
+          {validCoins.map((coin) => {
+            const percentage = coin.balance / total;
+            const sweepAngle = 2 * Math.PI * percentage;
+            const endAngle = startAngle + sweepAngle;
+            const path = createArc(startAngle, endAngle);
+            
+            const currentPath = path;
+            startAngle = endAngle;
+            
+            return (
+              <Path
+                key={coin.symbol}
+                d={currentPath}
+                fill={coin.color}
+                stroke="white"
+                strokeWidth={1}
+              />
+            );
+          })}
+        </G>
+      </Svg>
     );
   };
 
@@ -318,6 +205,13 @@ export default function WalletPage() {
         <TouchableOpacity onPress={() => fetchUserCoins()}>
           <Feather name="refresh-ccw" size={24} color={colors.text} />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Feather name="chevron-left" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>My Wallet</Text>
+        <TouchableOpacity onPress={() => fetchUserCoins()}>
+          <Feather name="refresh-ccw" size={24} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.balanceContainer}>
@@ -325,9 +219,13 @@ export default function WalletPage() {
         <Text style={styles.balanceAmount}>
           ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
+        <Text style={styles.balanceLabel}>Total Balance</Text>
+        <Text style={styles.balanceAmount}>
+          ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Text>
       </View>
 
-      <View style={styles.chartSection}>
+      <View style={styles.chartContainer}>
         {renderPieChart()}
       </View>
 
@@ -339,23 +237,9 @@ export default function WalletPage() {
           </View>
         ) : (
           userCoins.map((coin) => (
-            <TouchableOpacity 
-              key={coin.symbol} 
-              style={[
-                styles.coinItem,
-                activeIndex !== -1 && userCoins[activeIndex].symbol === coin.symbol && styles.coinItemActive
-              ]}
-              onPress={() => setActiveIndex(userCoins.findIndex(c => c.symbol === coin.symbol))}
-            >
+            <View key={coin.symbol} style={styles.coinItem}>
               <View style={styles.coinInfo}>
-                {coin.image ? (
-                  <Image 
-                    source={{ uri: coin.image }} 
-                    style={styles.coinImage}
-                  />
-                ) : (
-                  <View style={[styles.colorDot, { backgroundColor: coin.color }]} />
-                )}
+                <View style={[styles.colorDot, { backgroundColor: coin.color }]} />
                 <View>
                   <Text style={styles.coinName}>{coin.name}</Text>
                   <Text style={styles.coinSymbol}>
@@ -378,7 +262,7 @@ export default function WalletPage() {
                   </View>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           ))
         )}
       </View>
@@ -392,7 +276,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   centerContent: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -400,157 +283,58 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    padding: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#000",
   },
   balanceContainer: {
     alignItems: "center",
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    padding: 16,
   },
   balanceLabel: {
     fontSize: 16,
     color: "#666",
-    marginBottom: 8,
   },
   balanceAmount: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "bold",
-    color: "#000",
-  },
-  chartSection: {
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  chartWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chartContainer: {
-    width: CHART_SIZE,
-    height: CHART_SIZE * 0.8,
-    marginBottom: 12,
-  },
-  chartLegend: {
-    width: "100%",
-    paddingHorizontal: 16,
     marginTop: 8,
   },
-  legendItem: {
-    flexDirection: "row",
+  chartContainer: {
+    height: CHART_SIZE,
     alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  legendColor: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  legendText: {
-    fontSize: 14,
-    color: "#333",
-    flex: 1,
-  },
-  coinsList: {
+    justifyContent: "center",
     padding: 16,
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
-    paddingHorizontal: 8,
-    color: "#000",
+  chart: {
+    alignSelf: "center",
   },
   noDataContainer: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 32,
-    backgroundColor: "#f8f8f8",
-    borderRadius: 12,
-    margin: 16,
+    padding: 20,
   },
   noDataText: {
     fontSize: 16,
     color: "#666",
   },
-  coinImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 16,
+  coinsList: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
   },
   coinItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 16,
-    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    marginHorizontal: 8,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  coinItemActive: {
-    backgroundColor: "#f8f8f8",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: "#eee",
   },
   coinInfo: {
     flexDirection: "row",
@@ -558,18 +342,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   colorDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 16,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
   },
   coinName: {
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
-    color: "#000",
   },
   coinSymbol: {
     fontSize: 14,
@@ -585,7 +366,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
-    color: "#000",
     textAlign: "right",
   },
   coinValueContainer: {
@@ -598,51 +378,5 @@ const styles = StyleSheet.create({
   coinValue: {
     fontSize: 14,
     color: "#666",
-  },
-  emptyChartContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  emptyChartText: {
-    marginTop: 16,
-    color: "#666",
-    fontSize: 16,
-  },
-  tooltipContainer: {
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    minWidth: 120,
-  },
-  tooltipTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    color: '#000',
-  },
-  tooltipValue: {
-    fontSize: 18,
-    color: '#333',
-    fontWeight: '600',
-  },
-  legendItemActive: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 8,
-    transform: [{ scale: 1.02 }],
-  },
-  legendTextActive: {
-    fontWeight: 'bold',
-    color: '#000',
   },
 });

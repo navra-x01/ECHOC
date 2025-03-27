@@ -1,11 +1,12 @@
 import { Stack } from "expo-router"
 import ClientLayout from "../app/components/ClientLayout"
 import Navigation from "../app/components/Navigation"
-import { AuthProvider } from "../lib/AuthProvider"
+import { AuthProvider } from "../lib/AuthProvider";
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
+    
+    <AuthProvider> {/* Wrap everything inside AuthProvider */}
       <ClientLayout>
         <Stack screenOptions={{ headerShown: false }} />
         <Navigation />

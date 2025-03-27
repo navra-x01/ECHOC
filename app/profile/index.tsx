@@ -1,13 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Image, ScrollView } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
+import { useAuth } from "../../lib/AuthProvider";
+import { db } from "../../lib/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function ProfilePage() {
   const { colors, dark } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
+  const [userData, setUserData] = useState({ name: "", balance: 0 });
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    if (!user) return;
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        setUserData({
+          name: userDoc.data().name || "User",
+          balance: userDoc.data().balance || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -38,7 +62,7 @@ export default function ProfilePage() {
             style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: colors.border }}
           />
           <View style={{ marginLeft: 15 }}>
-            <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.text }}>Angelika Chayka</Text>
+            <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.text }}>{userData.name}</Text>
             <Text style={{ fontSize: 14, color: colors.text }}>Premium User Since 2021</Text>
           </View>
         </View>
@@ -48,7 +72,7 @@ export default function ProfilePage() {
           <Text style={{ fontSize: 14, color: colors.text }}>Current Balance</Text>
           <TouchableOpacity onPress={() => setShowBalance(!showBalance)}>
             <Text style={{ fontSize: 24, fontWeight: "bold", marginTop: 5, color: colors.text }}>
-              {showBalance ? "$25,000" : "••••••"}
+              {showBalance ? `$${userData.balance.toFixed(2)}` : "••••••"}
             </Text>
           </TouchableOpacity>
         </View>
