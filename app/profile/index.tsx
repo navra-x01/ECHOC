@@ -191,7 +191,7 @@ export default function ProfilePage() {
           <MaterialIcons name="lock" size={24} color={colors.text} />
           <Text style={{ marginLeft: 10, color: colors.text }}>Privacy & Security</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("../../app/profile/payment")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
+        <TouchableOpacity onPress={() => router.push("/profile/payment")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
           <MaterialIcons name="payment" size={24} color={colors.text} />
           <Text style={{ marginLeft: 10, color: colors.text }}>Payment Methods</Text>
         </TouchableOpacity>

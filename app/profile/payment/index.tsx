@@ -281,6 +281,7 @@ export default function PaymentPage() {
     },
     section: {
       padding: 16,
+      paddingBottom: 80,
     },
     sectionTitle: {
       fontSize: 18,
@@ -321,6 +322,7 @@ export default function PaymentPage() {
       borderRadius: 8,
       padding: 16,
       marginTop: 16,
+      marginBottom: 32,
     },
     input: {
       marginBottom: 16,
@@ -331,6 +333,8 @@ export default function PaymentPage() {
       borderRadius: 8,
       alignItems: 'center',
       opacity: loading ? 0.7 : 1,
+      marginTop: 16,
+      marginBottom: 16,
     },
     buttonText: {
       color: '#fff',
@@ -444,7 +448,7 @@ export default function PaymentPage() {
         <Text style={styles.title}>Payment Methods</Text>
       </View>
 
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
           {paymentMethods.map((method) => (
