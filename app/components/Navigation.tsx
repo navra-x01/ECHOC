@@ -5,6 +5,11 @@ import { GlobalStyles } from "../../styles"
 
 export default function Navigation() {
   const pathname = usePathname()
+  
+  // Hide navigation on auth pages
+  if (pathname.startsWith('/auth/')) {
+    return null;
+  }
 
   const getColor = (path: string) => (pathname === path ? GlobalStyles.accentTeal.color : GlobalStyles.textSecondary.color)
 

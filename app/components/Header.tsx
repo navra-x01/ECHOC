@@ -45,10 +45,12 @@ const styles = StyleSheet.create({
   },
   leftSection: {
     flex: 1,
+    alignItems: 'flex-end',
+    paddingRight: 70,
   },
   logo: {
-    width: 32,
-    height: 32,
+    width: 16,
+    height: 16,
   },
   titleContainer: {
     flex: 2,

@@ -97,11 +97,7 @@ export default function ProfilePage() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
       <Header 
         title="Profile"
-        rightComponent={
-          <TouchableOpacity onPress={() => {}}>
-            <Ionicons name={dark ? "sunny" : "moon"} size={24} color={colors.text} />
-          </TouchableOpacity>
-        }
+        rightComponent={null}
       />
 
       {/* Profile Card */}
