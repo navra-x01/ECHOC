@@ -6,11 +6,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Legend, ReferenceLine
 } from "recharts";
-import { doc, updateDoc, getDoc, arrayUnion, arrayRemove, collection, setDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { doc, updateDoc, getDoc, arrayUnion, arrayRemove, collection, setDoc, deleteDoc, getDocs, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebaseConfig";
 import { useAuth } from "../../lib/AuthProvider";
 
-const API_KEY = "CG-RA1kcuTZoEQ3F5LeE6iMQTFB";
+const API_KEY = "CG-iUySPZLPhoVGzJDRzHZTReeR";
 
 const POPULAR_COINS = [
   { id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC' },
@@ -62,7 +62,8 @@ type TimePeriod = '1H' | '1D' | '7D' | '1M' | '1Y' | 'MAX';
 
 export default function CoinPage() {
   const router = useRouter();
-  const { id: initialId } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams();
+  const { id: initialId } = params;
   const { user } = useAuth();
   const [id, setId] = useState(initialId);
   const [coinData, setCoinData] = useState<CoinData | null>(null);
@@ -104,6 +105,19 @@ export default function CoinPage() {
       fetchUserData();
     }
   }, [user]);
+
+  // Open modal if coming from cart with params
+  useEffect(() => {
+    if (params.showTransactionModal === 'true') {
+      setShowTransactionModal(true);
+      if (params.transactionType === 'buy' || params.transactionType === 'sell') {
+        setTransactionType(params.transactionType);
+      }
+      if (typeof params.amount === 'string') {
+        setAmount(params.amount);
+      }
+    }
+  }, [params]);
 
   const fetchInitialData = async () => {
     try {
@@ -197,124 +211,35 @@ export default function CoinPage() {
   const fetchUserData = async () => {
     if (!user) return;
     try {
-      // Fetch user balance
+      // Fetch user balance only
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         setUserBalance(userDoc.data().balance || 0);
       }
-
-      // Fetch user coins from coins collection
-      const coinsRef = collection(db, "users", user.uid, "coins");
-      const coinsSnapshot = await getDocs(coinsRef);
-      
-      const coins: Record<string, number> = {};
-      coinsSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        coins[data.symbol?.toUpperCase() || doc.id] = parseFloat(data.quantity) || 0;
-      });
-      
-      setUserCoins(coins);
     } catch (error) {
       console.error("Error fetching user data:", error);
     }
   };
 
-  const handleTransaction = async () => {
-    if (!user || !coinData) return;
-
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+  const handleProceedToCart = () => {
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
       return;
     }
-
-    const currentPrice = coinData.market_data.current_price.usd;
-    const totalValue = amountNum * currentPrice;
-
-    if (transactionType === 'buy') {
-      if (totalValue > userBalance) {
-        Alert.alert('Insufficient Balance', 'You do not have enough balance to make this purchase');
-        return;
+    router.push({
+      pathname: '/coin/cart',
+      params: {
+        type: transactionType,
+        coinId: coinData?.id,
+        coinName: coinData?.name,
+        coinSymbol: coinData?.symbol,
+        price: coinData?.market_data.current_price.usd,
+        amount: amount,
+        image: coinData?.image.large
       }
-    } else {
-      const userCoinAmount = userCoins[coinData.symbol.toUpperCase()] || 0;
-      if (amountNum > userCoinAmount) {
-        Alert.alert('Insufficient Coins', 'You do not have enough coins to sell');
-        return;
-      }
-    }
-
-    try {
-      const userRef = doc(db, "users", user.uid);
-      const coinsRef = collection(db, "users", user.uid, "coins");
-      const coinDoc = doc(coinsRef, coinData.symbol.toUpperCase());
-
-      if (transactionType === 'buy') {
-        // Update user balance
-        await updateDoc(userRef, {
-          balance: userBalance - totalValue
-        });
-
-        // Update or create coin document
-        const coinSnapshot = await getDoc(coinDoc);
-        if (coinSnapshot.exists()) {
-          await updateDoc(coinDoc, {
-            quantity: (coinSnapshot.data().quantity || 0) + amountNum
-          });
-        } else {
-          await setDoc(coinDoc, {
-            symbol: coinData.symbol.toUpperCase(),
-            quantity: amountNum
-          });
-        }
-
-        // Update local state
-        setUserBalance(prev => prev - totalValue);
-        setUserCoins(prev => ({
-          ...prev,
-          [coinData.symbol.toUpperCase()]: (prev[coinData.symbol.toUpperCase()] || 0) + amountNum
-        }));
-      } else {
-        // Update user balance
-        await updateDoc(userRef, {
-          balance: userBalance + totalValue
-        });
-
-        // Update coin document
-        const coinSnapshot = await getDoc(coinDoc);
-        if (coinSnapshot.exists()) {
-          const newQuantity = coinSnapshot.data().quantity - amountNum;
-          if (newQuantity <= 0) {
-            await deleteDoc(coinDoc);
-          } else {
-            await updateDoc(coinDoc, {
-              quantity: newQuantity
-            });
-          }
-        }
-
-        // Update local state
-        setUserBalance(prev => prev + totalValue);
-        setUserCoins(prev => ({
-          ...prev,
-          [coinData.symbol.toUpperCase()]: (prev[coinData.symbol.toUpperCase()] || 0) - amountNum
-        }));
-      }
-
-      Alert.alert(
-        'Success',
-        `${transactionType === 'buy' ? 'Bought' : 'Sold'} ${amountNum} ${coinData.symbol.toUpperCase()} for $${totalValue.toFixed(2)}`
-      );
-      
-      setShowTransactionModal(false);
-      setAmount('');
-      
-      // Refresh coin data to get latest price
-      fetchInitialData();
-    } catch (error) {
-      console.error("Error processing transaction:", error);
-      Alert.alert('Error', 'Failed to process transaction. Please try again.');
-    }
+    });
+    setShowTransactionModal(false);
+    setAmount("");
   };
 
   const formatTooltipDate = (timestamp: number) => {
@@ -793,7 +718,16 @@ export default function CoinPage() {
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <TouchableOpacity
-                onPress={() => setShowTransactionModal(false)}
+                onPress={() => {
+                  setShowTransactionModal(false);
+                  // Remove modal params from URL if present
+                  if (params.showTransactionModal === 'true') {
+                    router.replace({
+                      pathname: '/coin',
+                      params: { id }
+                    });
+                  }
+                }}
                 style={{
                   backgroundColor: theme.card,
                   paddingVertical: 12,
@@ -806,7 +740,7 @@ export default function CoinPage() {
                 <Text style={{ color: theme.text, textAlign: 'center', fontWeight: 'bold' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleTransaction}
+                onPress={handleProceedToCart}
                 style={{
                   backgroundColor: transactionType === 'buy' ? theme.positive : theme.negative,
                   paddingVertical: 12,

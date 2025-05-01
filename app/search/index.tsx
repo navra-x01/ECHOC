@@ -19,7 +19,7 @@ interface Coin {
   image: string;
 }
 
-const API_KEY = "CG-RA1kcuTZoEQ3F5LeE6iMQTFB";
+const API_KEY = "CG-iUySPZLPhoVGzJDRzHZTReeR";
 
 export default function SearchPage() {
   const { colors } = useTheme();

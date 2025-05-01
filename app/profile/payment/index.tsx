@@ -59,8 +59,9 @@ const CARD_TYPES: Record<CardType, CardTypeInfo> = {
   },
 };
 
-export default function PaymentPage() {
+export default function FundsPage() {
   const { colors } = useTheme();
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'upi' | 'netbanking'>('card');
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
@@ -101,6 +102,176 @@ export default function PaymentPage() {
     'Kotak Mahindra Bank',
   ];
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginLeft: 16,
+    },
+    content: {
+      padding: 16,
+    },
+    actionCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    buttonContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    actionButton: {
+      flex: 1,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    depositButton: {
+      backgroundColor: '#3443cf',
+    },
+    withdrawButton: {
+      backgroundColor: '#33d587',
+    },
+    actionButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    infoText: {
+      color: colors.text,
+      opacity: 0.7,
+      marginTop: 12,
+      textAlign: 'center',
+    },
+    section: {
+      marginBottom: 24,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 16,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    cardType: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    cardNumber: {
+      fontSize: 14,
+      color: colors.text,
+      marginBottom: 4,
+    },
+    cardExpiry: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    form: {
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      padding: 16,
+      marginTop: 16,
+    },
+    input: {
+      marginBottom: 16,
+      backgroundColor: 'transparent',
+    },
+    button: {
+      backgroundColor: colors.primary,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      opacity: loading ? 0.7 : 1,
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    deleteButton: {
+      padding: 8,
+      marginTop: 8,
+    },
+    deleteButtonText: {
+      color: '#ff4444',
+      fontSize: 14,
+    },
+    paymentMethodSelector: {
+      flexDirection: 'row',
+      marginBottom: 16,
+      gap: 8,
+    },
+    paymentMethodButton: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    paymentMethodButtonActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    paymentMethodText: {
+      color: colors.text,
+      fontSize: 14,
+    },
+    paymentMethodTextActive: {
+      color: '#fff',
+    },
+    bankSelector: {
+      flexDirection: 'row',
+      marginBottom: 16,
+      gap: 8,
+    },
+    bankOption: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    bankOptionSelected: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+  });
+
   const detectCardType = (number: string): CardType => {
     const cleanedNumber = number.replace(/\s/g, '');
     for (const [type, info] of Object.entries(CARD_TYPES)) {
@@ -127,75 +298,9 @@ export default function PaymentPage() {
     return cleaned;
   };
 
-  const validateCard = () => {
-    if (!name.trim()) {
-      setSnackbarMessage('Please enter cardholder name');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    if (!cardNumber.replace(/\s/g, '').match(/^\d{16}$/)) {
-      setSnackbarMessage('Please enter a valid 16-digit card number');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    if (!expiryDate.match(/^(0[1-9]|1[0-2])\/([0-9]{2})$/)) {
-      setSnackbarMessage('Please enter a valid expiry date (MM/YY)');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    if (!cvv.match(/^\d{3,4}$/)) {
-      setSnackbarMessage('Please enter a valid CVV');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    return true;
-  };
-
-  const validateUPI = () => {
-    if (!upiId.match(/^[a-zA-Z0-9.\-_]{2,49}@[a-zA-Z._]{2,49}$/)) {
-      setSnackbarMessage('Please enter a valid UPI ID');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    return true;
-  };
-
-  const validateNetBanking = () => {
-    if (!selectedBank) {
-      setSnackbarMessage('Please select a bank');
-      setSnackbarType('error');
-      setSnackbarVisible(true);
-      return false;
-    }
-    return true;
-  };
-
   const handleAddPaymentMethod = async () => {
     setLoading(true);
     try {
-      let isValid = false;
-      switch (selectedPaymentMethod) {
-        case 'card':
-          isValid = validateCard();
-          break;
-        case 'upi':
-          isValid = validateUPI();
-          break;
-        case 'netbanking':
-          isValid = validateNetBanking();
-          break;
-      }
-
-      if (!isValid) {
-        setLoading(false);
-        return;
-      }
-
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -261,196 +366,41 @@ export default function PaymentPage() {
     );
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: colors.text,
-      marginLeft: 16,
-    },
-    section: {
-      padding: 16,
-      paddingBottom: 80,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 16,
-    },
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      padding: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    cardType: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    cardNumber: {
-      fontSize: 14,
-      color: colors.text,
-      marginBottom: 4,
-    },
-    cardExpiry: {
-      fontSize: 14,
-      color: colors.text,
-    },
-    form: {
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      padding: 16,
-      marginTop: 16,
-      marginBottom: 32,
-    },
-    input: {
-      marginBottom: 16,
-    },
-    button: {
-      backgroundColor: colors.primary,
-      padding: 16,
-      borderRadius: 8,
-      alignItems: 'center',
-      opacity: loading ? 0.7 : 1,
-      marginTop: 16,
-      marginBottom: 16,
-    },
-    buttonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    paymentMethodSelector: {
-      flexDirection: 'row',
-      marginBottom: 16,
-      gap: 8,
-    },
-    paymentMethodButton: {
-      flex: 1,
-      padding: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    paymentMethodButtonActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    paymentMethodText: {
-      color: colors.text,
-      fontSize: 14,
-    },
-    paymentMethodTextActive: {
-      color: '#fff',
-    },
-    bankSelector: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 8,
-      marginBottom: 16,
-    },
-    bankOption: {
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    bankOptionSelected: {
-      backgroundColor: colors.primary + '20',
-    },
-    deleteButton: {
-      padding: 8,
-      marginTop: 8,
-    },
-    deleteButtonText: {
-      color: '#ff4444',
-      fontSize: 14,
-    },
-    cardTypeIndicator: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    cardTypeIcon: {
-      marginRight: 8,
-    },
-    cardTypeText: {
-      fontSize: 14,
-      color: colors.text,
-    },
-    cardPreview: {
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      padding: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    cardPreviewHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    cardPreviewNumber: {
-      fontSize: 20,
-      color: colors.text,
-      letterSpacing: 1,
-      marginBottom: 8,
-    },
-    cardPreviewDetails: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    cardPreviewName: {
-      fontSize: 14,
-      color: colors.text,
-    },
-    cardPreviewExpiry: {
-      fontSize: 14,
-      color: colors.text,
-    },
-  });
-
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'upi' | 'netbanking'>('card');
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Payment Methods</Text>
+        <Text style={styles.title}>Funds</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={styles.content}>
+        {/* Quick Actions */}
+        <View style={styles.actionCard}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.depositButton]}
+              onPress={() => router.push("/profile/payment/deposit")}
+            >
+              <Text style={styles.actionButtonText}>Deposit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.withdrawButton]}
+              onPress={() => router.push("/profile/payment/withdraw")}
+            >
+              <Text style={styles.actionButtonText}>Withdraw</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.infoText}>
+            Deposit or withdraw funds from your account
+          </Text>
+        </View>
+
+        {/* Payment Methods Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
+          <Text style={styles.sectionTitle}>Payment Methods</Text>
           {paymentMethods.map((method) => (
             <View key={method.id} style={styles.card}>
               <View style={styles.cardHeader}>
@@ -477,7 +427,7 @@ export default function PaymentPage() {
               {method.type === 'Net Banking' && (
                 <Text style={styles.cardNumber}>{method.bankName}</Text>
               )}
-              <TouchableOpacity
+              <TouchableOpacity 
                 style={styles.deleteButton}
                 onPress={() => handleDeletePaymentMethod(method.id)}
               >
@@ -487,6 +437,7 @@ export default function PaymentPage() {
           ))}
         </View>
 
+        {/* Add New Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Add New Payment Method</Text>
           <View style={styles.form}>
@@ -531,25 +482,6 @@ export default function PaymentPage() {
 
             {selectedPaymentMethod === 'card' && (
               <>
-                {cardNumber && (
-                  <View style={[styles.cardPreview, { borderColor: CARD_TYPES[detectedCardType].color }]}>
-                    <View style={styles.cardPreviewHeader}>
-                      <MaterialIcons 
-                        name={CARD_TYPES[detectedCardType].icon as MaterialIconName} 
-                        size={32} 
-                        color={CARD_TYPES[detectedCardType].color} 
-                      />
-                      <Text style={[styles.cardTypeText, { color: CARD_TYPES[detectedCardType].color }]}>
-                        {CARD_TYPES[detectedCardType].name}
-                      </Text>
-                    </View>
-                    <Text style={styles.cardPreviewNumber}>{cardNumber}</Text>
-                    <View style={styles.cardPreviewDetails}>
-                      <Text style={styles.cardPreviewName}>{name || 'CARDHOLDER NAME'}</Text>
-                      <Text style={styles.cardPreviewExpiry}>{expiryDate || 'MM/YY'}</Text>
-                    </View>
-                  </View>
-                )}
                 <TextInput
                   label="Cardholder Name"
                   value={name}

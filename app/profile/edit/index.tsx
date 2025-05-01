@@ -97,6 +97,11 @@ export default function EditProfilePage() {
       setSnackbarMessage('Profile updated successfully');
       setSnackbarType('success');
       setSnackbarVisible(true);
+      
+      // Navigate back to profile page after a short delay
+      setTimeout(() => {
+        router.back();
+      }, 1500);
     } catch (error) {
       console.error('Error updating profile:', error);
       setSnackbarMessage('Failed to update profile');
@@ -133,36 +138,44 @@ export default function EditProfilePage() {
       marginBottom: 24,
     },
     avatar: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
+      width: '100%',
+      height: 150,
       backgroundColor: colors.card,
-      borderWidth: 2,
-      borderColor: colors.border,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+      overflow: 'hidden',
     },
     avatarImage: {
       width: '100%',
       height: '100%',
-      borderRadius: 50,
+      resizeMode: 'cover',
     },
     changePhotoButton: {
+      backgroundColor: '#007AFF', // iOS blue color
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
       marginTop: 8,
-      padding: 8,
+      alignSelf: 'center',
     },
     changePhotoText: {
-      color: colors.primary,
+      color: '#FFFFFF',
       fontSize: 14,
+      fontWeight: '600',
     },
     form: {
-      backgroundColor: colors.card,
-      borderRadius: 8,
-      padding: 16,
+      marginTop: 16,
     },
     input: {
       marginBottom: 16,
+      backgroundColor: 'transparent',
     },
     saveButton: {
       marginTop: 24,
+      marginBottom: 24,
+      backgroundColor: '#7E57C2', // Purple color from screenshot
     },
   });
 
@@ -177,16 +190,16 @@ export default function EditProfilePage() {
 
       <ScrollView style={styles.content}>
         <View style={styles.avatarSection}>
-          {userData.avatar ? (
-            <Image
-              source={{ uri: userData.avatar }}
-              style={styles.avatarImage}
-            />
-          ) : (
-            <View style={styles.avatar}>
+          <View style={styles.avatar}>
+            {userData.avatar ? (
+              <Image
+                source={{ uri: userData.avatar }}
+                style={styles.avatarImage}
+              />
+            ) : (
               <MaterialIcons name="person" size={50} color={colors.text} />
-            </View>
-          )}
+            )}
+          </View>
           <TouchableOpacity style={styles.changePhotoButton} onPress={handleImagePick}>
             <Text style={styles.changePhotoText}>Change Photo</Text>
           </TouchableOpacity>

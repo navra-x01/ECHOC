@@ -126,10 +126,23 @@ export default function WalletPage() {
       const coinsRef = collection(db, "users", user.uid, "coins");
       const coinsSnapshot = await getDocs(coinsRef);
       
-      const userCoinData = coinsSnapshot.docs.map(doc => ({
-        symbol: doc.data().symbol?.toUpperCase() || "UNKNOWN",
-        quantity: parseFloat(doc.data().quantity) || 0
-      }));
+      // Only get coins with quantity > 0
+      const userCoinData = coinsSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          symbol: doc.data().symbol?.toUpperCase() || "UNKNOWN",
+          quantity: parseFloat(doc.data().quantity) || 0,
+          name: doc.data().name || "",
+          image: doc.data().image || ""
+        }))
+        .filter(coin => coin.quantity > 0); // Filter out coins with zero or negative quantity
+
+      if (userCoinData.length === 0) {
+        setTotalBalance(0);
+        setUserCoins([]);
+        setLoading(false);
+        return;
+      }
 
       // Fetch updated coin data from CoinGecko
       const coinData = await fetchCoinData(userCoinData.map(coin => coin.symbol));
@@ -138,7 +151,7 @@ export default function WalletPage() {
       const coins: Coin[] = [];
 
       for (const userCoin of userCoinData) {
-        const { symbol, quantity } = userCoin;
+        const { symbol, quantity, name, image, id } = userCoin;
         const geckoData = coinData[symbol];
         
         if (geckoData) {
@@ -148,14 +161,14 @@ export default function WalletPage() {
           total += balance;
           
           coins.push({
-            name: geckoData.name,
+            name: name || geckoData.name,
             symbol: symbol,
             quantity: quantity,
             currentPrice: currentPrice,
             balance: balance,
             color: defaultColors[symbol as keyof typeof defaultColors] || `#${Math.floor(Math.random()*16777215).toString(16)}`,
             change: geckoData.change,
-            image: geckoData.image
+            image: image || geckoData.image
           });
         }
       }

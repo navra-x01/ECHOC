@@ -36,7 +36,7 @@ interface UserCoin {
   color: string;
 }
 
-const API_KEY = "CG-RA1kcuTZoEQ3F5LeE6iMQTFB";
+const API_KEY = "CG-iUySPZLPhoVGzJDRzHZTReeR";
 
 export default function HomePage() {
   const router = useRouter();

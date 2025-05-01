@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -6,7 +6,7 @@ import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
 import { useAuth } from "../../lib/AuthProvider";
 import { db } from "../../lib/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import Header from "../components/Header";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface UserData {
   name: string;
@@ -15,7 +15,7 @@ interface UserData {
 }
 
 export default function ProfilePage() {
-  const { colors, dark } = useTheme();
+  const { colors } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
@@ -50,156 +50,221 @@ export default function ProfilePage() {
   };
 
   const styles = StyleSheet.create({
-    profileInfo: {
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flex: 1,
+    },
+    profileCard: {
+      backgroundColor: colors.card,
+      marginHorizontal: 16,
+      marginTop: 16,
+      borderRadius: 16,
+      padding: 20,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    profileHeader: {
       flexDirection: "row",
       alignItems: "center",
     },
     avatarContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      borderWidth: 2,
-      borderColor: colors.border,
-      marginRight: 15,
+      width: 70,
+      height: 70,
+      borderRadius: 35,
+      marginRight: 16,
+      overflow: 'hidden',
+      backgroundColor: colors.border,
     },
     avatar: {
       width: "100%",
       height: "100%",
-      borderRadius: 40,
     },
-    avatarPlaceholder: {
-      width: "100%",
-      height: "100%",
-      borderRadius: 40,
-      backgroundColor: colors.border,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    userInfo: {
-      flexDirection: "column",
+    userInfoContainer: {
+      flex: 1,
     },
     userName: {
-      fontSize: 20,
-      fontWeight: "bold",
+      fontSize: 22,
+      fontWeight: "600",
       color: colors.text,
+      marginBottom: 4,
     },
     userEmail: {
       fontSize: 14,
       color: colors.text,
+      opacity: 0.7,
     },
     editButton: {
       padding: 8,
-      marginLeft: 'auto',
+    },
+    balanceContainer: {
+      marginTop: 24,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    balanceLabel: {
+      fontSize: 14,
+      color: colors.text,
+      opacity: 0.7,
+    },
+    balanceAmount: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: colors.text,
+      marginTop: 8,
+    },
+    settingsContainer: {
+      marginHorizontal: 16,
+      marginTop: 16,
+      marginBottom: 16,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    settingsHeader: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+      padding: 12,
+      backgroundColor: colors.card,
+    },
+    settingItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 10,
+      backgroundColor: colors.card,
+      borderTopWidth: 0.5,
+      borderTopColor: colors.border,
+    },
+    settingIcon: {
+      width: 20,
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    settingText: {
+      fontSize: 14,
+      color: colors.text,
+      flex: 1,
     },
   });
 
+  const settingsItems = [
+    {
+      icon: <Feather name="clock" size={18} color={colors.text} />,
+      text: "Transaction History",
+      route: "/profile/transaction-list"
+    },
+    {
+      icon: <MaterialIcons name="account-balance-wallet" size={18} color={colors.text} />,
+      text: "Funds",
+      route: "/profile/payment"
+    },
+    {
+      icon: <Ionicons name="notifications-outline" size={18} color={colors.text} />,
+      text: "Notifications",
+      route: "/profile/notifications"
+    },
+    {
+      icon: <Feather name="user-plus" size={18} color={colors.text} />,
+      text: "Referral Program / Invite Friend",
+      route: "/profile/referral"
+    },
+    {
+      icon: <Feather name="help-circle" size={18} color={colors.text} />,
+      text: "Help / FAQ",
+      route: "/profile/help"
+    },
+    {
+      icon: <MaterialIcons name="support-agent" size={18} color={colors.text} />,
+      text: "Contact Support",
+      route: "/profile/support"
+    },
+    {
+      icon: <Feather name="file-text" size={18} color={colors.text} />,
+      text: "Terms of Service & Privacy Policy",
+      route: "/profile/privacy"
+    },
+    {
+      icon: <Feather name="message-square" size={18} color={colors.text} />,
+      text: "Report a Problem / Feedback",
+      route: "/profile/feedback"
+    },
+    {
+      icon: <Feather name="log-out" size={18} color="#FF3B30" />,
+      text: "Log Out",
+      route: "/auth/logout",
+      textColor: "#FF3B30"
+    }
+  ];
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
-      <Header 
-        title="Profile"
-        rightComponent={null}
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.container}>
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              {userData?.avatar ? (
+                <Image source={{ uri: userData.avatar }} style={styles.avatar} />
+              ) : (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                  <MaterialIcons name="person" size={35} color={colors.text} />
+                </View>
+              )}
+            </View>
+            <View style={styles.userInfoContainer}>
+              <Text style={styles.userName}>{userData?.name || 'User'}</Text>
+              <Text style={styles.userEmail}>{user?.email}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.editButton}
+              onPress={() => router.push('/profile/edit')}
+            >
+              <MaterialIcons name="edit" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
 
-      {/* Profile Card */}
-      <View
-        style={{
-          backgroundColor: colors.card,
-          marginHorizontal: 20,
-          padding: 20,
-          borderRadius: 10,
-          marginTop: 20,
-          shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
-          shadowOffset: { width: 0, height: 2 },
-        }}
-      >
-        <View style={styles.profileInfo}>
-          <View style={styles.avatarContainer}>
-            {userData?.avatar ? (
-              <Image source={{ uri: userData.avatar }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <MaterialIcons name="person" size={40} color={colors.text} />
+          <View style={styles.balanceContainer}>
+            <Text style={styles.balanceLabel}>Current Balance</Text>
+            <TouchableOpacity onPress={() => setShowBalance(!showBalance)}>
+              <Text style={styles.balanceAmount}>
+                {showBalance ? `$${userData.balance.toFixed(2)}` : "••••••"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.settingsContainer}>
+          <Text style={styles.settingsHeader}>Account Settings</Text>
+          {settingsItems.map((item, index) => (
+            <TouchableOpacity 
+              key={index}
+              onPress={() => router.push(item.route)}
+              style={styles.settingItem}
+            >
+              <View style={styles.settingIcon}>
+                {item.icon}
               </View>
-            )}
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{userData?.name || 'User'}</Text>
-            <Text style={styles.userEmail}>{user?.email}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => router.push('/profile/edit')}
-          >
-            <MaterialIcons name="edit" size={24} color={colors.primary} />
-          </TouchableOpacity>
+              <Text style={[
+                styles.settingText,
+                item.textColor ? { color: item.textColor } : null
+              ]}>
+                {item.text}
+              </Text>
+              <MaterialIcons 
+                name="chevron-right" 
+                size={16} 
+                color={item.textColor || colors.text} 
+              />
+            </TouchableOpacity>
+          ))}
         </View>
-
-        {/* Balance */}
-        <View style={{ marginTop: 20 }}>
-          <Text style={{ fontSize: 14, color: colors.text }}>Current Balance</Text>
-          <TouchableOpacity onPress={() => setShowBalance(!showBalance)}>
-            <Text style={{ fontSize: 24, fontWeight: "bold", marginTop: 5, color: colors.text }}>
-              {showBalance ? `$${userData.balance.toFixed(2)}` : "••••••"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Buttons */}
-        <View style={{ flexDirection: "row", marginTop: 20, justifyContent: "space-between" }}>
-          <TouchableOpacity style={{ backgroundColor: "#33d587", padding: 10, borderRadius: 5, flex: 1, marginRight: 5 }}>
-            <Text style={{ color: "white", textAlign: "center" }}>Withdraw</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ backgroundColor: "#3443cf", padding: 10, borderRadius: 5, flex: 1, marginLeft: 5 }}>
-            <Text style={{ color: "white", textAlign: "center" }}>Deposit</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={{ marginHorizontal: 20, marginTop: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.text }}>Quick Actions</Text>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
-          <TouchableOpacity onPress={() => router.push("../../app/profile/transaction-list")}>
-            <Feather name="clock" size={24} color={colors.text} />
-            <Text style={{ color: colors.text }}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("../../app/wallet")}>
-            <Feather name="trending-up" size={24} color={colors.text} />
-            <Text style={{ color: colors.text }}>Market</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("../../app/search")}>
-            <Feather name="credit-card" size={24} color={colors.text} />
-            <Text style={{ color: colors.text }}>Assets</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("../../app/profile")}>
-            <Feather name="settings" size={24} color={colors.text} />
-            <Text style={{ color: colors.text }}>Settings</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Account Settings */}
-      <View style={{ marginHorizontal: 20, marginTop: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.text }}>Account Settings</Text>
-        <TouchableOpacity onPress={() => router.push("../../app/profile/privacy")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
-          <MaterialIcons name="lock" size={24} color={colors.text} />
-          <Text style={{ marginLeft: 10, color: colors.text }}>Privacy & Security</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("/profile/payment")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
-          <MaterialIcons name="payment" size={24} color={colors.text} />
-          <Text style={{ marginLeft: 10, color: colors.text }}>Payment Methods</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("../../app/profile/notifications")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
-          <Ionicons name="notifications-outline" size={24} color={colors.text} />
-          <Text style={{ marginLeft: 10, color: colors.text }}>Notifications</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("/auth/logout")} style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
-          <Feather name="log-out" size={24} color={colors.text} />
-          <Text style={{ marginLeft: 10, color: colors.text }}>Log Out</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
